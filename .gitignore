@@ -3,6 +3,8 @@ node_modules/
 dist/
 .venv/
 .matplotlib-cache/
+.run/
+data/
 .idea/
 .vscode/
 *.iml
@@ -10,5 +12,6 @@ dist/
 .env
 .DS_Store
 output/
+artifacts/
 __pycache__/
 *.pyc

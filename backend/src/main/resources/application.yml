@@ -3,10 +3,10 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/mlops_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3306/mlops_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
   jpa:
     hibernate:
       ddl-auto: update
@@ -18,6 +18,6 @@ spring:
     time-zone: Asia/Shanghai
 
 mlops:
-  python-executable: ../.venv/Scripts/python.exe
-  script-path: ../scripts/mock_process.py
-  output-root: ../output
+  python-executable: ${MLOPS_PYTHON:../.venv/Scripts/python.exe}
+  script-path: ${MLOPS_SCRIPT_PATH:../scripts/mock_process.py}
+  output-root: ${MLOPS_OUTPUT_ROOT:../output}

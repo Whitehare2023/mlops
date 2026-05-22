@@ -30,6 +30,44 @@ output/                Generated task outputs
 
 ## 数据库初始化
 
+最快演示可以直接使用一键脚本，脚本会优先尝试连接 MySQL；如果 MySQL 不可用，会自动切换到内置 H2 文件数据库，避免演示被数据库安装卡住。
+
+```powershell
+.\start-dev.bat
+```
+
+脚本会自动执行：
+
+1. 创建 Python 虚拟环境 `.venv`。
+2. 安装 Python 依赖。
+3. 安装前端 npm 依赖。
+4. 执行 Python mock 脚本烟测。
+5. 打包 Spring Boot 后端。
+6. 构建 Vue 前端。
+7. 启动后端 `http://localhost:8080` 和前端 `http://localhost:5173`。
+
+如果要强制使用 MySQL：
+
+```powershell
+.\start-dev.bat -Database mysql -DbUser root -DbPassword 123456
+```
+
+如果只想安装依赖并做构建自检，不启动服务：
+
+```powershell
+.\start-dev.bat -PrepareOnly -Database h2
+```
+
+如果依赖已经装好，想快速启动：
+
+```powershell
+.\start-dev.bat -SkipInstall -NoBuild -Database h2
+```
+
+系统级前置环境：Java 17+、Maven、Node.js、Python 3。MySQL 8.0 是正式交付数据库；无 MySQL 时脚本会用 H2 demo 模式跑通全流程。
+
+### MySQL 手动初始化
+
 ```bash
 mysql -u root -p < database/init.sql
 ```
