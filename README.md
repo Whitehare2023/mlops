@@ -49,14 +49,14 @@ spring:
 ## Python 环境
 
 ```bash
-cd scripts
-pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r scripts\requirements.txt
 ```
 
 也可以单独验证脚本：
 
 ```bash
-python mock_process.py --task_id 1001 --target_date 2026-05-19 --mask_range=-1,1 --output_root ../output
+.\.venv\Scripts\python.exe scripts\mock_process.py --task_id 1001 --target_date 2026-05-19 --mask_range=-1,1 --output_root output
 ```
 
 执行完成后会生成：

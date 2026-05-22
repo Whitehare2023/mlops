@@ -18,7 +18,6 @@ spring:
     time-zone: Asia/Shanghai
 
 mlops:
-  python-executable: python
+  python-executable: ../.venv/Scripts/python.exe
   script-path: ../scripts/mock_process.py
   output-root: ../output
-
