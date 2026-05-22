@@ -1,0 +1,14 @@
+target/
+node_modules/
+dist/
+.venv/
+.matplotlib-cache/
+.idea/
+.vscode/
+*.iml
+*.log
+.env
+.DS_Store
+output/
+__pycache__/
+*.pyc
