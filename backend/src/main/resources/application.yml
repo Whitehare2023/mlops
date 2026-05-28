@@ -16,6 +16,10 @@ spring:
         format_sql: true
   jackson:
     time-zone: Asia/Shanghai
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
 
 mlops:
   python-executable: ${MLOPS_PYTHON:../.venv/Scripts/python.exe}

@@ -5,9 +5,11 @@ import java.time.LocalDateTime;
 public record ModelAssetResponse(
         Long id,
         String assetName,
-        String scriptPath,
+        String originalFilename,
+        String contentType,
+        Long fileSize,
         String description,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
 }
-

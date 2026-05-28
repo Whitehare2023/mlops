@@ -61,7 +61,18 @@ body {
 .toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 14px;
+}
+
+.asset-toolbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.asset-search {
+  width: 280px;
 }
 
 .data-table {
@@ -72,6 +83,17 @@ body {
 
 .full-width {
   width: 100%;
+}
+
+.asset-uploader {
+  display: inline-flex;
+  align-items: center;
+}
+
+.file-current {
+  margin-left: 12px;
+  color: #64748b;
+  font-size: 13px;
 }
 
 .result-header {
@@ -151,4 +173,3 @@ figure img {
     grid-template-columns: 1fr;
   }
 }
-

@@ -39,15 +39,41 @@
         </el-tab-pane>
 
         <el-tab-pane label="模型资产" name="assets">
-          <section class="toolbar">
-            <el-button type="primary" :icon="Plus" @click="assetDialogVisible = true">登记脚本</el-button>
+          <section class="toolbar asset-toolbar">
+            <el-input
+              v-model="assetKeyword"
+              class="asset-search"
+              clearable
+              placeholder="资产名 / 文件名"
+              :prefix-icon="Search"
+              @keyup.enter="refreshAssets"
+              @clear="refreshAssets"
+            />
+            <el-button :icon="Search" @click="refreshAssets">查询</el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreateAsset">上传资产</el-button>
           </section>
+
           <el-table :data="assets" class="data-table" stripe>
             <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="assetName" label="资产名称" min-width="220" />
-            <el-table-column prop="scriptPath" label="脚本路径" min-width="260" />
-            <el-table-column prop="description" label="说明" min-width="280" />
-            <el-table-column prop="createdAt" label="创建时间" width="190" />
+            <el-table-column prop="assetName" label="资产名称" min-width="210" />
+            <el-table-column prop="originalFilename" label="文件名" min-width="240" />
+            <el-table-column label="大小" width="110">
+              <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
+            </el-table-column>
+            <el-table-column prop="contentType" label="文件类型" min-width="160" />
+            <el-table-column prop="description" label="说明" min-width="250" />
+            <el-table-column prop="updatedAt" label="更新时间" width="190" />
+            <el-table-column label="操作" width="260" fixed="right">
+              <template #default="{ row }">
+                <el-button :icon="Edit" size="small" @click="openEditAsset(row)">编辑</el-button>
+                <el-button :icon="Download" size="small" @click="downloadAsset(row)" :disabled="!row.fileSize">
+                  下载
+                </el-button>
+                <el-button :icon="Delete" size="small" type="danger" plain @click="removeAsset(row)">
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -81,16 +107,29 @@
     </template>
   </el-dialog>
 
-  <el-dialog v-model="assetDialogVisible" title="登记模型脚本资产" width="560px">
+  <el-dialog v-model="assetDialogVisible" :title="assetDialogTitle" width="580px">
     <el-form :model="assetForm" label-width="100px">
       <el-form-item label="资产名称">
         <el-input v-model="assetForm.assetName" maxlength="80" />
       </el-form-item>
-      <el-form-item label="脚本路径">
-        <el-input v-model="assetForm.scriptPath" />
+      <el-form-item label="资产文件" required>
+        <el-upload
+          class="asset-uploader"
+          :auto-upload="false"
+          :limit="1"
+          :file-list="assetUploadFiles"
+          :on-change="handleAssetFileChange"
+          :on-remove="handleAssetFileRemove"
+          :on-exceed="handleAssetFileExceed"
+        >
+          <el-button :icon="Upload">选择文件</el-button>
+        </el-upload>
+        <span v-if="assetMode === 'edit' && assetForm.originalFilename" class="file-current">
+          当前：{{ assetForm.originalFilename }}
+        </span>
       </el-form-item>
       <el-form-item label="说明">
-        <el-input v-model="assetForm.description" type="textarea" :rows="3" />
+        <el-input v-model="assetForm.description" type="textarea" :rows="3" maxlength="300" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -139,16 +178,19 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Plus, Refresh, View } from '@element-plus/icons-vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Download, Edit, Plus, Refresh, Search, Upload, View } from '@element-plus/icons-vue'
 import {
+  assetFileUrl,
   createAsset,
   createTask,
+  deleteAsset,
   getTaskCsv,
   getTaskImages,
   listAssets,
-  listTasks
+  listTasks,
+  updateAsset
 } from './api'
 
 const activeTab = ref('tasks')
@@ -156,14 +198,20 @@ const loading = ref(false)
 const submitting = ref(false)
 const tasks = ref([])
 const assets = ref([])
+const assetKeyword = ref('')
 const csv = reactive({ headers: [], rows: [] })
 const images = ref([])
 const selectedTask = ref(null)
 const resultVisible = ref(false)
 const taskDialogVisible = ref(false)
 const assetDialogVisible = ref(false)
+const assetMode = ref('create')
+const selectedAssetFile = ref(null)
+const assetUploadFiles = ref([])
 const cacheBust = ref(Date.now())
 let pollTimer = null
+
+const assetDialogTitle = computed(() => (assetMode.value === 'create' ? '上传模型资产' : '编辑模型资产'))
 
 const taskForm = reactive({
   taskName: '遥感视觉模型评估',
@@ -173,9 +221,10 @@ const taskForm = reactive({
 })
 
 const assetForm = reactive({
-  assetName: 'Vision Remote Sensing Mock Evaluator',
-  scriptPath: '../scripts/mock_process.py',
-  description: 'Mock evaluator for lifecycle scheduling and automated result collection.'
+  id: null,
+  assetName: '',
+  originalFilename: '',
+  description: ''
 })
 
 function statusType(status) {
@@ -184,12 +233,19 @@ function statusType(status) {
   return 'warning'
 }
 
+function formatFileSize(size) {
+  if (!size) return '-'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(2)} MB`
+}
+
 async function refreshTasks() {
   tasks.value = await listTasks()
 }
 
 async function refreshAssets() {
-  assets.value = await listAssets()
+  assets.value = await listAssets(assetKeyword.value)
 }
 
 async function refreshAll() {
@@ -217,17 +273,94 @@ async function submitTask() {
   }
 }
 
+function openCreateAsset() {
+  assetMode.value = 'create'
+  assetForm.id = null
+  assetForm.assetName = ''
+  assetForm.originalFilename = ''
+  assetForm.description = ''
+  selectedAssetFile.value = null
+  assetUploadFiles.value = []
+  assetDialogVisible.value = true
+}
+
+function openEditAsset(asset) {
+  assetMode.value = 'edit'
+  assetForm.id = asset.id
+  assetForm.assetName = asset.assetName
+  assetForm.originalFilename = asset.originalFilename
+  assetForm.description = asset.description || ''
+  selectedAssetFile.value = null
+  assetUploadFiles.value = []
+  assetDialogVisible.value = true
+}
+
+function handleAssetFileChange(uploadFile, uploadFiles) {
+  selectedAssetFile.value = uploadFile.raw
+  assetUploadFiles.value = uploadFiles.slice(-1)
+}
+
+function handleAssetFileRemove() {
+  selectedAssetFile.value = null
+  assetUploadFiles.value = []
+}
+
+function handleAssetFileExceed(files) {
+  selectedAssetFile.value = files[0]
+  assetUploadFiles.value = [{ name: files[0].name, raw: files[0] }]
+}
+
 async function submitAsset() {
+  if (!assetForm.assetName.trim()) {
+    ElMessage.error('请输入资产名称')
+    return
+  }
+  if (assetMode.value === 'create' && !selectedAssetFile.value) {
+    ElMessage.error('请选择资产文件')
+    return
+  }
+
   submitting.value = true
   try {
-    await createAsset({ ...assetForm })
-    ElMessage.success('资产已登记')
+    const payload = {
+      assetName: assetForm.assetName,
+      description: assetForm.description,
+      file: selectedAssetFile.value
+    }
+    if (assetMode.value === 'create') {
+      await createAsset(payload)
+      ElMessage.success('资产已上传')
+    } else {
+      await updateAsset(assetForm.id, payload)
+      ElMessage.success('资产已更新')
+    }
     assetDialogVisible.value = false
     await refreshAssets()
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
     submitting.value = false
+  }
+}
+
+function downloadAsset(asset) {
+  window.open(assetFileUrl(asset.id), '_blank')
+}
+
+async function removeAsset(asset) {
+  try {
+    await ElMessageBox.confirm(`删除资产“${asset.assetName}”？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+    await deleteAsset(asset.id)
+    ElMessage.success('资产已删除')
+    await refreshAssets()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '删除已取消')
+    }
   }
 }
 
@@ -260,4 +393,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
