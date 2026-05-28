@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS evaluation_task (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     task_name VARCHAR(128) NOT NULL,
     target_date DATE NOT NULL,
+    model_asset_id BIGINT,
+    model_asset_name VARCHAR(128),
     mask_min DOUBLE NOT NULL,
     mask_max DOUBLE NOT NULL,
     status VARCHAR(32) NOT NULL,
@@ -92,6 +94,26 @@ CREATE TABLE IF NOT EXISTS evaluation_task (
     started_at DATETIME,
     finished_at DATETIME
 );
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'evaluation_task' AND COLUMN_NAME = 'model_asset_id') = 0,
+    'ALTER TABLE evaluation_task ADD COLUMN model_asset_id BIGINT',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'evaluation_task' AND COLUMN_NAME = 'model_asset_name') = 0,
+    'ALTER TABLE evaluation_task ADD COLUMN model_asset_name VARCHAR(128)',
+    'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS task_result (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,

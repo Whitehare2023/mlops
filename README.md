@@ -125,6 +125,7 @@ http://localhost:8080
 POST /api/tasks
 GET  /api/tasks
 GET  /api/tasks/{id}
+DELETE /api/tasks/{id}
 GET  /api/tasks/{id}/csv
 GET  /api/tasks/{id}/images
 GET  /api/assets
@@ -134,7 +135,7 @@ DELETE /api/assets/{id}
 GET  /api/assets/{id}/file
 ```
 
-模型资产接口使用 `multipart/form-data` 上传文件，后端会把文件二进制内容保存到 `model_asset.file_data`，页面支持查询、上传、新增、编辑、下载和删除。
+模型资产接口使用 `multipart/form-data` 上传文件，后端会把文件二进制内容保存到 `model_asset.file_data`。页面支持任务查询/新建/删除、模型资产查询/上传/编辑/下载/删除，两部分都带分页。创建任务时可选择模型资产，任务列表和结果页会显示该任务关联的资产名称。
 
 ## 启动前端
 
@@ -154,16 +155,16 @@ http://localhost:5173
 
 1. 打开前端页面。
 2. 点击“新建任务”。
-3. 输入测试名称、目标日期、白色遮罩区间，例如 `-1` 到 `1`。
+3. 输入或保留自动生成的测试名称，选择模型资产、目标日期、白色遮罩区间，例如 `-1` 到 `1`。
 4. 提交后任务状态进入 `RUNNING`。
 5. Python 脚本执行完成后，任务状态变为 `SUCCESS`。
 6. 点击“结果”查看 CSV 数据矩阵、趋势图和空间异常图。
-7. 进入“模型资产”，可以上传脚本文件、按名称/文件名查询、编辑资产说明、下载文件或删除资产。
+7. 任务列表可按任务名、模型资产或状态查询，并可删除任务；“模型资产”页可以上传脚本文件、按名称/文件名查询、编辑资产说明、下载文件或删除资产。
 
 ## 论文可写模块
 
 - Model Asset Registry: `model_asset` 表记录模型/脚本资产元数据，并使用 `file_data` 保存上传文件内容。
 - Evaluation Scheduler: Java 使用 `ProcessBuilder` 调度 Python 脚本。
-- Task State Tracking: `evaluation_task` 表记录 Running/Success/Failed 状态。
+- Task State Tracking: `evaluation_task` 表记录 Running/Success/Failed 状态，并保存任务关联的模型资产标识。
 - Result Lineage: `task_result` 表保存 CSV、PNG 结果路径。
 - Automated Evaluation: Python 脚本固定执行 8 天窗口、末行平均值、科学记数法斜率和白色噪声遮罩。

@@ -98,7 +98,7 @@ body {
 
 .result-header {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   margin-bottom: 22px;
 }
@@ -129,8 +129,9 @@ h2 {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: 1fr;
+  gap: 22px;
+  max-width: 1180px;
 }
 
 figure {
@@ -150,8 +151,24 @@ figcaption {
 figure img {
   display: block;
   width: 100%;
+  max-height: 720px;
+  object-fit: contain;
   border: 1px solid #e2e8f0;
   border-radius: 4px;
+}
+
+.pager {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.result-drawer .el-drawer__body {
+  padding: 20px 28px 34px;
+  background: #f8fafc;
+}
+
+.result-drawer figure {
+  background: #ffffff;
 }
 
 @media (max-width: 860px) {

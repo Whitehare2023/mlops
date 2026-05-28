@@ -25,8 +25,9 @@ async function request(path, options = {}) {
   return response.json()
 }
 
-export function listTasks() {
-  return request('/tasks')
+export function listTasks(keyword = '') {
+  const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+  return request(`/tasks${query}`)
 }
 
 export function createTask(payload) {
@@ -38,6 +39,12 @@ export function createTask(payload) {
 
 export function getTask(id) {
   return request(`/tasks/${id}`)
+}
+
+export function deleteTask(id) {
+  return request(`/tasks/${id}`, {
+    method: 'DELETE'
+  })
 }
 
 export function getTaskCsv(id) {

@@ -25,6 +25,11 @@ public class EvaluationTask {
     @Column(nullable = false)
     private LocalDate targetDate;
 
+    private Long modelAssetId;
+
+    @Column(length = 128)
+    private String modelAssetName;
+
     @Column(nullable = false)
     private Double maskMin;
 
@@ -70,6 +75,22 @@ public class EvaluationTask {
 
     public void setTargetDate(LocalDate targetDate) {
         this.targetDate = targetDate;
+    }
+
+    public Long getModelAssetId() {
+        return modelAssetId;
+    }
+
+    public void setModelAssetId(Long modelAssetId) {
+        this.modelAssetId = modelAssetId;
+    }
+
+    public String getModelAssetName() {
+        return modelAssetName;
+    }
+
+    public void setModelAssetName(String modelAssetName) {
+        this.modelAssetName = modelAssetName;
     }
 
     public Double getMaskMin() {
@@ -136,4 +157,3 @@ public class EvaluationTask {
         this.finishedAt = finishedAt;
     }
 }
-

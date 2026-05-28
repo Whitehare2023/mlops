@@ -68,12 +68,17 @@ def draw_trend_chart(df: pd.DataFrame, output_path: Path) -> float:
     anomaly = data["anomaly_mean"].astype(float).to_numpy()
     slope = float(np.polyfit(x, accuracy, 1)[0])
 
-    fig, ax1 = plt.subplots(figsize=(10, 5.2), dpi=160)
+    fig, ax1 = plt.subplots(figsize=(11.5, 5.6), dpi=160)
     ax1.plot(x, accuracy, color="#2563eb", linewidth=2.5, marker="o")
     ax1.set_ylim(0.72, 1.0)
     ax1.set_ylabel("Detection Accuracy")
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(data["date"], rotation=30, ha="right")
+    tick_step = 2 if len(data) <= 14 else 7
+    tick_positions = list(range(0, len(data), tick_step))
+    if tick_positions[-1] != len(data) - 1:
+        tick_positions.append(len(data) - 1)
+    ax1.set_xticks(tick_positions)
+    ax1.set_xticklabels(data["date"].iloc[tick_positions], rotation=24, ha="right")
+    ax1.set_xlim(-0.35, x[-1] + 1.85)
     ax1.grid(True, axis="y", linestyle="--", alpha=0.28)
 
     ax2 = ax1.twinx()
@@ -82,7 +87,7 @@ def draw_trend_chart(df: pd.DataFrame, output_path: Path) -> float:
 
     # Acceptance rule: labels are placed at the top or right side; no legend is used.
     ax1.text(
-        x[-1] + 0.1,
+        x[-1] + 0.42,
         accuracy[-1],
         "Detection Accuracy",
         color="#2563eb",
@@ -90,7 +95,7 @@ def draw_trend_chart(df: pd.DataFrame, output_path: Path) -> float:
         fontsize=9,
     )
     ax2.text(
-        x[-1] + 0.1,
+        x[-1] + 0.42,
         anomaly[-1],
         "Anomaly Mean",
         color="#dc2626",
@@ -108,7 +113,7 @@ def draw_trend_chart(df: pd.DataFrame, output_path: Path) -> float:
         fontweight="bold",
     )
     ax1.set_title("8-Day Vision Model Evaluation Trend", pad=18)
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.08, right=0.78, bottom=0.18, top=0.86)
     fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
     return slope
@@ -142,7 +147,7 @@ def draw_anomaly_map(mask_min: float, mask_max: float, seed: int, output_path: P
     cmap, norm = build_white_mask_cmap(vmin, vmax, mask_min, mask_max)
 
     if ccrs is not None:
-        fig = plt.figure(figsize=(9, 5.6), dpi=160)
+        fig = plt.figure(figsize=(10.2, 5.8), dpi=160)
         ax = plt.axes(projection=ccrs.PlateCarree())
         mesh = ax.pcolormesh(
             anomaly["lon"],
@@ -156,24 +161,26 @@ def draw_anomaly_map(mask_min: float, mask_max: float, seed: int, output_path: P
         ax.gridlines(linewidth=0.25, color="#64748b", alpha=0.35, linestyle="--")
         ax.set_extent([73, 135, 18, 54], crs=ccrs.PlateCarree())
     else:
-        fig, ax = plt.subplots(figsize=(9, 5.6), dpi=160)
+        fig, ax = plt.subplots(figsize=(10.2, 5.8), dpi=160)
         mesh = ax.pcolormesh(anomaly["lon"], anomaly["lat"], anomaly, cmap=cmap, norm=norm, shading="auto")
         ax.set_xlim(73, 135)
         ax.set_ylim(18, 54)
 
     ax.set_title("Spatial Anomaly Map with Pure White Noise Mask", pad=14)
     ax.text(
-        1.02,
-        0.92,
-        f"White mask\n[{mask_min:g}, {mask_max:g}]",
+        0.02,
+        0.98,
+        f"White mask: [{mask_min:g}, {mask_max:g}]",
         transform=ax.transAxes,
         ha="left",
         va="top",
         fontsize=9,
+        bbox={"boxstyle": "round,pad=0.32", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.92},
     )
-    colorbar = fig.colorbar(mesh, ax=ax, fraction=0.046, pad=0.06)
+    colorbar = fig.colorbar(mesh, ax=ax, fraction=0.04, pad=0.035)
     colorbar.set_label("Anomaly Value")
     colorbar.set_ticks([vmin, mask_min, mask_max, vmax])
+    fig.subplots_adjust(left=0.07, right=0.88, bottom=0.08, top=0.9)
     fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
 

@@ -7,8 +7,8 @@ import java.time.LocalDate;
 public record CreateTaskRequest(
         @NotBlank String taskName,
         @NotNull LocalDate targetDate,
+        Long modelAssetId,
         @NotNull Double maskMin,
         @NotNull Double maskMax
 ) {
 }
-

@@ -2,8 +2,10 @@ package com.whitehare.mlops.service;
 
 import com.whitehare.mlops.config.MlopsProperties;
 import com.whitehare.mlops.exception.ApiException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
@@ -32,5 +34,24 @@ public class FileStorageService {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to load file");
         }
     }
-}
 
+    public void deleteTaskDirectory(Long taskId) {
+        Path taskDir = outputRoot.resolve(String.valueOf(taskId)).normalize();
+        if (!taskDir.startsWith(outputRoot) || !Files.exists(taskDir)) {
+            return;
+        }
+
+        try (var paths = Files.walk(taskDir)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException ex) {
+                            throw new IllegalStateException(ex);
+                        }
+                    });
+        } catch (IOException | IllegalStateException ex) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete task output files");
+        }
+    }
+}

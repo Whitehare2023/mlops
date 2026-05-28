@@ -8,6 +8,8 @@ public record TaskResponse(
         Long id,
         String taskName,
         LocalDate targetDate,
+        Long modelAssetId,
+        String modelAssetName,
         Double maskMin,
         Double maskMax,
         TaskStatus status,
@@ -18,4 +20,3 @@ public record TaskResponse(
         ResultResponse result
 ) {
 }
-

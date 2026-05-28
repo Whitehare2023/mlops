@@ -14,6 +14,8 @@ public class TaskMapper {
                 task.getId(),
                 task.getTaskName(),
                 task.getTargetDate(),
+                task.getModelAssetId(),
+                task.getModelAssetName(),
                 task.getMaskMin(),
                 task.getMaskMax(),
                 task.getStatus(),
@@ -35,4 +37,3 @@ public class TaskMapper {
         );
     }
 }
-

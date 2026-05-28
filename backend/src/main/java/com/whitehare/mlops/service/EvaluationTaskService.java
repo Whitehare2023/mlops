@@ -1,6 +1,7 @@
 package com.whitehare.mlops.service;
 
 import com.whitehare.mlops.domain.EvaluationTask;
+import com.whitehare.mlops.domain.ModelAsset;
 import com.whitehare.mlops.domain.TaskResult;
 import com.whitehare.mlops.domain.TaskStatus;
 import com.whitehare.mlops.dto.CreateTaskRequest;
@@ -9,6 +10,7 @@ import com.whitehare.mlops.dto.ImageResourceResponse;
 import com.whitehare.mlops.dto.TaskResponse;
 import com.whitehare.mlops.exception.ApiException;
 import com.whitehare.mlops.repository.EvaluationTaskRepository;
+import com.whitehare.mlops.repository.ModelAssetRepository;
 import com.whitehare.mlops.repository.TaskResultRepository;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,23 +24,30 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EvaluationTaskService {
 
     private final EvaluationTaskRepository taskRepository;
     private final TaskResultRepository resultRepository;
+    private final ModelAssetRepository modelAssetRepository;
+    private final FileStorageService fileStorageService;
     private final TaskExecutionService taskExecutionService;
     private final TaskMapper taskMapper;
 
     public EvaluationTaskService(
             EvaluationTaskRepository taskRepository,
             TaskResultRepository resultRepository,
+            ModelAssetRepository modelAssetRepository,
+            FileStorageService fileStorageService,
             TaskExecutionService taskExecutionService,
             TaskMapper taskMapper
     ) {
         this.taskRepository = taskRepository;
         this.resultRepository = resultRepository;
+        this.modelAssetRepository = modelAssetRepository;
+        this.fileStorageService = fileStorageService;
         this.taskExecutionService = taskExecutionService;
         this.taskMapper = taskMapper;
     }
@@ -51,6 +60,12 @@ public class EvaluationTaskService {
         EvaluationTask task = new EvaluationTask();
         task.setTaskName(request.taskName());
         task.setTargetDate(request.targetDate());
+        if (request.modelAssetId() != null) {
+            ModelAsset asset = modelAssetRepository.findById(request.modelAssetId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "modelAssetId not found"));
+            task.setModelAssetId(asset.getId());
+            task.setModelAssetName(asset.getAssetName());
+        }
         task.setMaskMin(request.maskMin());
         task.setMaskMax(request.maskMax());
         task.setStatus(TaskStatus.RUNNING);
@@ -61,8 +76,13 @@ public class EvaluationTaskService {
         return taskMapper.toResponse(saved, null);
     }
 
-    public List<TaskResponse> listTasks() {
+    public List<TaskResponse> listTasks(String keyword) {
+        String trimmed = keyword == null ? "" : keyword.trim().toLowerCase();
         return taskRepository.findAll().stream()
+                .filter(task -> trimmed.isEmpty()
+                        || task.getTaskName().toLowerCase().contains(trimmed)
+                        || (task.getModelAssetName() != null && task.getModelAssetName().toLowerCase().contains(trimmed))
+                        || task.getStatus().name().toLowerCase().contains(trimmed))
                 .sorted(Comparator.comparing(EvaluationTask::getCreatedAt).reversed())
                 .map(task -> taskMapper.toResponse(task, resultRepository.findByTaskId(task.getId()).orElse(null)))
                 .toList();
@@ -72,6 +92,14 @@ public class EvaluationTaskService {
         EvaluationTask task = findTask(id);
         TaskResult result = resultRepository.findByTaskId(id).orElse(null);
         return taskMapper.toResponse(task, result);
+    }
+
+    @Transactional
+    public void deleteTask(Long id) {
+        EvaluationTask task = findTask(id);
+        resultRepository.findByTaskId(id).ifPresent(resultRepository::delete);
+        taskRepository.delete(task);
+        fileStorageService.deleteTaskDirectory(id);
     }
 
     public CsvTableResponse readCsv(Long taskId) {
@@ -140,4 +168,3 @@ public class EvaluationTaskService {
         return values;
     }
 }
-

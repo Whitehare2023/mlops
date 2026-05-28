@@ -11,13 +11,26 @@
     <el-main class="main">
       <el-tabs v-model="activeTab" class="workspace-tabs">
         <el-tab-pane label="任务调度" name="tasks">
-          <section class="toolbar">
-            <el-button type="primary" :icon="Plus" @click="taskDialogVisible = true">新建任务</el-button>
+          <section class="toolbar asset-toolbar">
+            <el-input
+              v-model="taskKeyword"
+              class="asset-search"
+              clearable
+              placeholder="任务名 / 模型 / 状态"
+              :prefix-icon="Search"
+              @keyup.enter="refreshTasks"
+              @clear="refreshTasks"
+            />
+            <el-button :icon="Search" @click="refreshTasks">查询</el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreateTask">新建任务</el-button>
           </section>
 
-          <el-table :data="tasks" class="data-table" stripe>
+          <el-table :data="pagedTasks" class="data-table" stripe>
             <el-table-column prop="id" label="Task ID" width="92" />
             <el-table-column prop="taskName" label="测试名称" min-width="180" />
+            <el-table-column label="模型资产" min-width="190">
+              <template #default="{ row }">{{ row.modelAssetName || '未绑定' }}</template>
+            </el-table-column>
             <el-table-column prop="targetDate" label="目标日期" width="130" />
             <el-table-column label="白色遮罩区间" width="150">
               <template #default="{ row }">[{{ row.maskMin }}, {{ row.maskMax }}]</template>
@@ -28,14 +41,24 @@
               </template>
             </el-table-column>
             <el-table-column prop="createdAt" label="创建时间" width="190" />
-            <el-table-column label="操作" width="132" fixed="right">
+            <el-table-column label="操作" width="190" fixed="right">
               <template #default="{ row }">
                 <el-button :icon="View" size="small" @click="openResult(row)" :disabled="row.status !== 'SUCCESS'">
                   结果
                 </el-button>
+                <el-button :icon="Delete" size="small" type="danger" plain @click="removeTask(row)">
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
+          <el-pagination
+            class="pager"
+            layout="total, prev, pager, next"
+            :total="tasks.length"
+            :page-size="taskPageSize"
+            v-model:current-page="taskPage"
+          />
         </el-tab-pane>
 
         <el-tab-pane label="模型资产" name="assets">
@@ -53,7 +76,7 @@
             <el-button type="primary" :icon="Plus" @click="openCreateAsset">上传资产</el-button>
           </section>
 
-          <el-table :data="assets" class="data-table" stripe>
+          <el-table :data="pagedAssets" class="data-table" stripe>
             <el-table-column prop="id" label="ID" width="80" />
             <el-table-column prop="assetName" label="资产名称" min-width="210" />
             <el-table-column prop="originalFilename" label="文件名" min-width="240" />
@@ -75,6 +98,13 @@
               </template>
             </el-table-column>
           </el-table>
+          <el-pagination
+            class="pager"
+            layout="total, prev, pager, next"
+            :total="assets.length"
+            :page-size="assetPageSize"
+            v-model:current-page="assetPage"
+          />
         </el-tab-pane>
       </el-tabs>
     </el-main>
@@ -84,6 +114,16 @@
     <el-form :model="taskForm" label-width="110px">
       <el-form-item label="测试名称">
         <el-input v-model="taskForm.taskName" maxlength="64" />
+      </el-form-item>
+      <el-form-item label="模型资产">
+        <el-select v-model="taskForm.modelAssetId" filterable clearable class="full-width" placeholder="选择模型资产">
+          <el-option
+            v-for="asset in assets"
+            :key="asset.id"
+            :label="`${asset.assetName} / ${asset.originalFilename || '-'}`"
+            :value="asset.id"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item label="目标日期">
         <el-date-picker
@@ -138,12 +178,16 @@
     </template>
   </el-dialog>
 
-  <el-drawer v-model="resultVisible" size="78%" title="评估结果">
+  <el-drawer v-model="resultVisible" size="82%" :title="resultTitle" class="result-drawer">
     <template v-if="selectedTask">
       <div class="result-header">
         <div>
           <span class="muted">Task ID</span>
           <strong>{{ selectedTask.id }}</strong>
+        </div>
+        <div>
+          <span class="muted">模型资产</span>
+          <strong>{{ selectedTask.modelAssetName || '未绑定' }}</strong>
         </div>
         <div>
           <span class="muted">目标日期</span>
@@ -156,7 +200,7 @@
       </div>
 
       <h2>CSV 数据矩阵</h2>
-      <el-table :data="csv.rows" border class="data-table csv-table" max-height="360">
+      <el-table :data="csv.rows" border class="data-table csv-table" max-height="460">
         <el-table-column
           v-for="header in csv.headers"
           :key="header"
@@ -185,6 +229,7 @@ import {
   assetFileUrl,
   createAsset,
   createTask,
+  deleteTask,
   deleteAsset,
   getTaskCsv,
   getTaskImages,
@@ -198,7 +243,12 @@ const loading = ref(false)
 const submitting = ref(false)
 const tasks = ref([])
 const assets = ref([])
+const taskKeyword = ref('')
 const assetKeyword = ref('')
+const taskPage = ref(1)
+const taskPageSize = 8
+const assetPage = ref(1)
+const assetPageSize = 8
 const csv = reactive({ headers: [], rows: [] })
 const images = ref([])
 const selectedTask = ref(null)
@@ -212,10 +262,23 @@ const cacheBust = ref(Date.now())
 let pollTimer = null
 
 const assetDialogTitle = computed(() => (assetMode.value === 'create' ? '上传模型资产' : '编辑模型资产'))
+const resultTitle = computed(() => {
+  if (!selectedTask.value) return '评估结果'
+  return `评估结果 - Task #${selectedTask.value.id} / ${selectedTask.value.taskName}`
+})
+const pagedTasks = computed(() => {
+  const start = (taskPage.value - 1) * taskPageSize
+  return tasks.value.slice(start, start + taskPageSize)
+})
+const pagedAssets = computed(() => {
+  const start = (assetPage.value - 1) * assetPageSize
+  return assets.value.slice(start, start + assetPageSize)
+})
 
 const taskForm = reactive({
-  taskName: '遥感视觉模型评估',
+  taskName: '',
   targetDate: '2026-05-19',
+  modelAssetId: null,
   maskMin: -1,
   maskMax: 1
 })
@@ -241,11 +304,13 @@ function formatFileSize(size) {
 }
 
 async function refreshTasks() {
-  tasks.value = await listTasks()
+  tasks.value = await listTasks(taskKeyword.value)
+  taskPage.value = 1
 }
 
 async function refreshAssets() {
   assets.value = await listAssets(assetKeyword.value)
+  assetPage.value = 1
 }
 
 async function refreshAll() {
@@ -260,6 +325,10 @@ async function refreshAll() {
 }
 
 async function submitTask() {
+  if (!taskForm.taskName.trim()) {
+    ElMessage.error('请输入测试名称')
+    return
+  }
   submitting.value = true
   try {
     await createTask({ ...taskForm })
@@ -270,6 +339,44 @@ async function submitTask() {
     ElMessage.error(error.message)
   } finally {
     submitting.value = false
+  }
+}
+
+function openCreateTask() {
+  taskForm.taskName = buildTaskName()
+  taskForm.modelAssetId = assets.value[0]?.id || null
+  taskDialogVisible.value = true
+}
+
+function buildTaskName() {
+  const now = new Date()
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')
+  ].join('')
+  const time = [
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+    String(now.getSeconds()).padStart(2, '0')
+  ].join('')
+  return `遥感视觉模型评估-${stamp}-${time}-mask${taskForm.maskMin}_${taskForm.maskMax}`
+}
+
+async function removeTask(task) {
+  try {
+    await ElMessageBox.confirm(`删除任务“${task.taskName}”？`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+    await deleteTask(task.id)
+    ElMessage.success('任务已删除')
+    await refreshTasks()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error.message || '删除已取消')
+    }
   }
 }
 
@@ -358,7 +465,7 @@ async function removeAsset(asset) {
     ElMessage.success('资产已删除')
     await refreshAssets()
   } catch (error) {
-    if (error !== 'cancel') {
+    if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(error.message || '删除已取消')
     }
   }
